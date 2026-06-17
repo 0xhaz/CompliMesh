@@ -38,6 +38,13 @@ export interface ScreeningView {
     country: string
     rule: string
   }
+  // Beneficial-ownership sub-check (OFAC 50% rule). Optional — only present on
+  // a fresh run; history rows omit it.
+  ownership?: {
+    state: 'BLOCKED' | 'RISK' | 'CLEAR' | 'NO_DATA'
+    sanctionedPct: number
+    topOwner: string | null
+  }
   rulesetSnapshot: string
   reason: string
 }
@@ -98,6 +105,22 @@ export function toScreeningView(run: RunResult): ScreeningView {
       country: run.destination.country,
       rule: destinationRuleText(run.destination),
     },
+    ownership: run.ownership
+      ? {
+          state: !run.ownership.hasData
+            ? 'NO_DATA'
+            : run.ownership.totalSanctionedPct >= 50
+              ? 'BLOCKED'
+              : run.ownership.totalSanctionedPct > 0
+                ? 'RISK'
+                : 'CLEAR',
+          sanctionedPct: run.ownership.totalSanctionedPct,
+          topOwner:
+            run.ownership.owners.find((o) => o.sanctioned)?.matchedParty ??
+            run.ownership.owners.find((o) => o.sanctioned)?.name ??
+            null,
+        }
+      : undefined,
     rulesetSnapshot: run.snapshots.restrictedParty.label,
     reason: run.reason,
   }

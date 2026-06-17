@@ -21,6 +21,7 @@ import {
 import type { RunStatus, RunTrigger, Verdict } from '../types'
 import { classify, type ClassificationResult, type HsCandidate } from './classify'
 import { parseCountryCode, resolveDestination, type DestinationResult } from './destination'
+import { type OwnershipResult, resolveOwnership } from './ownership'
 import { type EntityResult, screenEntity } from './screen'
 import { aggregateVerdict, type ControlHit, resolveHits } from './verdict'
 
@@ -53,6 +54,7 @@ export interface RunResult {
   classification: ClassificationResult
   entity: EntityResult
   destination: DestinationResult
+  ownership: OwnershipResult | null
   hits: ControlHit[]
   suppressed: { partyName: string } | null // a cleared false-positive was suppressed
   snapshots: { restrictedParty: SnapshotRef; hs: SnapshotRef; destinationRule: SnapshotRef }
@@ -86,10 +88,11 @@ async function currentSnapshots(db: Db) {
   const rp = by['RESTRICTED_PARTY']
   const hs = by['HS']
   const dr = by['DESTINATION_RULE']
+  const own = by['OWNERSHIP'] ?? null // optional — ownership data may not be seeded
   if (!rp || !hs || !dr) {
     throw new Error('Missing reference snapshots — run `pnpm seed` to load demo data.')
   }
-  return { rp, hs, dr }
+  return { rp, hs, dr, own }
 }
 
 // Party names a reviewer has cleared as false positives for this customer.
@@ -121,9 +124,12 @@ export async function runScreening(
   const classification = await classify(input.product, candidates)
   const entity = await screenEntity(db, input.counterparty, snap.rp.id)
   const destination = await resolveDestination(db, classification.hsCode, input.destination, snap.dr.id)
+  const ownership = snap.own
+    ? await resolveOwnership(db, input.counterparty, snap.rp.id, snap.own.id)
+    : null
 
   // 4: resolve hits, then suppress any cleared false-positive entity match.
-  let hits = resolveHits(classification, entity, destination)
+  let hits = resolveHits(classification, entity, destination, ownership ?? undefined)
   let suppressed: { partyName: string } | null = null
   if (ctx.customerId && entity.partyName) {
     const cleared = await clearedPartyNames(db, ctx.customerId)
@@ -191,7 +197,9 @@ export async function runScreening(
               ? snap.rp.id
               : h.sourceType === 'DESTINATION_RULE'
                 ? snap.dr.id
-                : null,
+                : h.sourceType === 'OWNERSHIP'
+                  ? (snap.own?.id ?? null)
+                  : null,
         })),
       )
     }
@@ -211,7 +219,15 @@ export async function runScreening(
     await appendAudit(tx, {
       runId: run.id,
       eventType: 'SCREEN',
-      payload: { actor, band: entity.band, party: entity.partyName, list: entity.listSource, score: round(entity.score), suppressed: suppressed?.partyName ?? null },
+      payload: {
+        actor,
+        band: entity.band,
+        party: entity.partyName,
+        list: entity.listSource,
+        score: round(entity.score),
+        suppressed: suppressed?.partyName ?? null,
+        ownershipSanctionedPct: ownership?.hasData ? ownership.totalSanctionedPct : null,
+      },
       createdAt,
     })
     await appendAudit(tx, {
@@ -238,6 +254,7 @@ export async function runScreening(
     classification,
     entity,
     destination,
+    ownership,
     hits,
     suppressed,
     snapshots: { restrictedParty: snap.rp, hs: snap.hs, destinationRule: snap.dr },

@@ -19,6 +19,8 @@ const ENTRIES: Entry[] = [
   { client: 'Sahara Components FZE', customer: 'Gulf Avionics Trading', product: 'Aircraft turbine engine components', destination: 'United Arab Emirates (AE)' },
   { client: 'Sahara Components FZE', customer: 'Hikvison Digital', product: 'High-resolution thermal / IR surveillance camera module', destination: 'United Arab Emirates (AE)' },
   { client: 'Sahara Components FZE', customer: 'Pacific Components Ltd', product: 'Electronic integrated circuits — processors', destination: 'United Arab Emirates (AE)' },
+  { client: 'Sahara Components FZE', customer: 'Crescent Dynamics FZE', product: 'Electronic integrated circuits — processors', destination: 'United Arab Emirates (AE)' },
+  { client: 'Sahara Components FZE', customer: 'Tabriz Components Co', product: 'Electronic integrated circuits — processors', destination: 'United Arab Emirates (AE)' },
   { client: 'Pacific Instruments', customer: 'Mahan Air', product: 'Aircraft turbine engine components', destination: 'Iran (IR)' },
   { client: 'Pacific Instruments', customer: 'Tokyo Sensor Works', product: 'Radar apparatus', destination: 'Japan (JP)' },
 ]

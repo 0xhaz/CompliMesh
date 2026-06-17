@@ -23,6 +23,7 @@ import {
 import type { Verdict } from '../types'
 import { resolveDestination } from './destination'
 import { type ClassificationResult } from './classify'
+import { resolveOwnership } from './ownership'
 import { statusForVerdict } from './pipeline'
 import { screenEntity } from './screen'
 import { aggregateVerdict, resolveHits } from './verdict'
@@ -122,6 +123,7 @@ export async function rescreenClient(ctx: RescreenContext): Promise<RescreenResu
   const rp = by['RESTRICTED_PARTY']
   const hs = by['HS']
   const dr = by['DESTINATION_RULE']
+  const own = by['OWNERSHIP'] ?? null
   if (!rp || !hs || !dr) throw new Error('Missing reference snapshots.')
 
   const custs = (
@@ -161,7 +163,8 @@ export async function rescreenClient(ctx: RescreenContext): Promise<RescreenResu
     const country = c.country ? String(c.country) : '—'
     const entity = await screenEntity(db, name, rp.id)
     const destination = await resolveDestination(db, null, country, dr.id)
-    const hits = resolveHits(cleanClassification, entity, destination)
+    const ownership = own ? await resolveOwnership(db, name, rp.id, own.id) : null
+    const hits = resolveHits(cleanClassification, entity, destination, ownership ?? undefined)
     const { verdict, reason } = aggregateVerdict(hits)
     const status = statusForVerdict(verdict)
     const createdAt = new Date().toISOString()
@@ -202,7 +205,8 @@ export async function rescreenClient(ctx: RescreenContext): Promise<RescreenResu
             ruleType: h.ruleType,
             matchScore: h.matchScore === null ? null : String(Math.round(h.matchScore * 10000) / 10000),
             reason: h.reason,
-            snapshotId: h.sourceType === 'RESTRICTED_PARTY' ? rp.id : null,
+            snapshotId:
+              h.sourceType === 'RESTRICTED_PARTY' ? rp.id : h.sourceType === 'OWNERSHIP' ? (own?.id ?? null) : null,
           })),
         )
       }

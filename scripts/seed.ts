@@ -24,6 +24,7 @@ import {
   destinationRules,
   hsReference,
   organizations,
+  partyOwnership,
   refSnapshots,
   restrictedParties,
   users,
@@ -83,7 +84,7 @@ async function main() {
   // audit_log; the append-only REVOKE/trigger only block UPDATE/DELETE.
   console.log('▶ truncating all tables…')
   await db.execute(
-    sql`TRUNCATE products, entities, ref_snapshots, restricted_parties, hs_reference, destination_rules, screening_runs, control_hits, audit_log, organizations, users, clients, customers, fp_clearances RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE products, entities, ref_snapshots, restricted_parties, hs_reference, destination_rules, party_ownership, screening_runs, control_hits, audit_log, organizations, users, clients, customers, fp_clearances RESTART IDENTITY CASCADE`,
   )
 
   // Per-source snapshots (§2.3) — each feed versions independently.
@@ -133,6 +134,20 @@ async function main() {
     })),
   )
 
+  // Beneficial-ownership graph (50% rule). Owners are REAL listed parties from
+  // the CSL trim above, so the ownership check reuses the restricted-party list.
+  console.log('▶ inserting party_ownership (50%-rule demo)…')
+  const [own] = await db
+    .insert(refSnapshots)
+    .values({ sourceType: 'OWNERSHIP', label: `Beneficial ownership (curated demo) · ${SNAPSHOT_DATE}` })
+    .returning()
+  await db.insert(partyOwnership).values([
+    // Clean name, but 51% owned by an OFAC-SDN party → NO_GO (treated as blocked).
+    { subjectName: 'Crescent Dynamics FZE', ownerName: 'Rosoboronexport', ownerPct: '51', snapshotId: own.id },
+    // Partial (35%) sanctioned ownership → REVIEW (enhanced due diligence).
+    { subjectName: 'Tabriz Components Co', ownerName: 'Mahan Air', ownerPct: '35', snapshotId: own.id },
+  ])
+
   // ── v2: tenant (a forwarder), its users (roles), client accounts, customers ──
   console.log('▶ inserting organization + users + clients + customers…')
   const [org] = await db
@@ -168,6 +183,8 @@ async function main() {
     { clientId: sahara.id, name: 'Gulf Avionics Trading', country: 'AE' },
     { clientId: sahara.id, name: 'Hikvison Digital', country: 'AE' }, // fuzzy → REVIEW
     { clientId: sahara.id, name: 'Pacific Components Ltd', country: 'AE' }, // re-screen target
+    { clientId: sahara.id, name: 'Crescent Dynamics FZE', country: 'AE' }, // clean name, 51% SDN-owned → NO_GO
+    { clientId: sahara.id, name: 'Tabriz Components Co', country: 'IR' }, // 35% sanctioned-owned → REVIEW
     { clientId: pacific.id, name: 'Mahan Air', country: 'IR' }, // exact → NO_GO
     { clientId: pacific.id, name: 'Tokyo Sensor Works', country: 'JP' },
   ])
@@ -177,7 +194,7 @@ async function main() {
 
   console.log(
     `\n✅ Seeded: ${RESTRICTED_PARTIES.length} restricted parties · ${HS_REFERENCE.length} HS codes · ${DESTINATION_RULES.length} destination rules · 3 snapshots.` +
-      `\n   Tenant: ${org.name} (FORWARDER) · 5 users · 3 clients · 7 customers · ${runs} screening runs.`,
+      `\n   Tenant: ${org.name} (FORWARDER) · 5 users · 3 clients · 9 customers · ${runs} screening runs.`,
   )
 }
 

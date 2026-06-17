@@ -74,4 +74,20 @@ export const DEMO_SCENARIOS: DemoScenario[] = [
       '=> no PROHIBITED, has FUZZY_MATCH + LICENSE_REQUIRED => REVIEW',
     ],
   },
+  {
+    key: 'ownership',
+    label: 'Clean name, sanctioned 51% owner (OFAC 50% rule)',
+    expected: 'NO_GO',
+    input: {
+      product: 'Electronic integrated circuits — processors',
+      counterparty: 'Crescent Dynamics FZE',
+      destination: 'United Arab Emirates (AE)',
+    },
+    hits: [
+      'CLASSIFICATION: HS 8542.31 resolved, above floor (no noise)',
+      'ENTITY: name screens CLEAR — "Crescent Dynamics FZE" is not on any list',
+      'OWNERSHIP: 51% owned by OFAC SDN "Rosoboronexport" => PROHIBITED (50% rule) => NO_GO',
+      '=> the Haas failure mode: the entity is blocked via its ownership, not its name',
+    ],
+  },
 ]

@@ -16,7 +16,11 @@ import type {
 } from '../types'
 import type { ClassificationResult } from './classify'
 import type { DestinationResult } from './destination'
+import type { OwnershipResult } from './ownership'
 import type { EntityResult } from './screen'
+
+// ≥ this % of sanctioned ownership = the entity is itself blocked (OFAC 50% rule).
+export const OWNERSHIP_BLOCK_THRESHOLD = 50
 
 // A resolved control hit, ready to persist into control_hits.
 export interface ControlHit {
@@ -39,6 +43,7 @@ export function resolveHits(
   classification: ClassificationResult,
   entity: EntityResult,
   destination: DestinationResult,
+  ownership?: OwnershipResult,
 ): ControlHit[] {
   const hits: ControlHit[] = []
 
@@ -85,6 +90,31 @@ export function resolveHits(
       matchScore: null,
       reason: `Export license required to ${destination.country}${destination.notes ? ` — ${destination.notes}` : ''}.`,
     })
+  }
+
+  // --- Beneficial-ownership control (OFAC 50% rule) ---
+  if (ownership?.hasData && ownership.totalSanctionedPct > 0) {
+    const owner = ownership.owners.find((o) => o.sanctioned)
+    const ownerDesc = owner ? `${owner.matchedParty ?? owner.name} (${owner.pct}%)` : 'a sanctioned party'
+    if (ownership.totalSanctionedPct >= OWNERSHIP_BLOCK_THRESHOLD) {
+      hits.push({
+        sourceType: 'OWNERSHIP',
+        sourceRefId: null,
+        dimension: 'OWNERSHIP',
+        ruleType: 'PROHIBITED',
+        matchScore: ownership.totalSanctionedPct / 100,
+        reason: `Owned ${ownership.totalSanctionedPct}% by sanctioned ownership — ${ownerDesc}. OFAC 50% rule: treated as blocked even though the name screens clean.`,
+      })
+    } else {
+      hits.push({
+        sourceType: 'OWNERSHIP',
+        sourceRefId: null,
+        dimension: 'OWNERSHIP',
+        ruleType: 'OWNERSHIP_RISK',
+        matchScore: ownership.totalSanctionedPct / 100,
+        reason: `Partial sanctioned ownership (${ownership.totalSanctionedPct}%) — ${ownerDesc}. Below the 50% block threshold; conduct enhanced due diligence.`,
+      })
+    }
   }
 
   // --- Classification confidence floor ---

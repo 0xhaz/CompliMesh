@@ -32,16 +32,17 @@ import {
 // pg enums: cheaper to evolve (no ALTER TYPE dance) and the values double as
 // the API contract surfaced in core/types.
 
-export const SOURCE_TYPES = ['RESTRICTED_PARTY', 'HS', 'DESTINATION_RULE'] as const
+export const SOURCE_TYPES = ['RESTRICTED_PARTY', 'HS', 'DESTINATION_RULE', 'OWNERSHIP'] as const
 export const DESTINATION_RULE_TYPES = ['PROHIBITED', 'LICENSE_REQUIRED', 'ALLOWED'] as const
 export const VERDICTS = ['GO', 'REVIEW', 'NO_GO'] as const
-export const HIT_SOURCE_TYPES = ['RESTRICTED_PARTY', 'DESTINATION_RULE', 'CLASSIFICATION'] as const
-export const HIT_DIMENSIONS = ['ENTITY', 'HS_COUNTRY', 'CONFIDENCE'] as const
+export const HIT_SOURCE_TYPES = ['RESTRICTED_PARTY', 'DESTINATION_RULE', 'CLASSIFICATION', 'OWNERSHIP'] as const
+export const HIT_DIMENSIONS = ['ENTITY', 'HS_COUNTRY', 'CONFIDENCE', 'OWNERSHIP'] as const
 export const HIT_RULE_TYPES = [
-  'PROHIBITED', // exact entity match OR destination PROHIBITED -> NO_GO
+  'PROHIBITED', // exact entity match, destination PROHIBITED, OR ≥50% sanctioned ownership -> NO_GO
   'FUZZY_MATCH', // confident/grey-zone fuzzy entity match -> REVIEW
   'LICENSE_REQUIRED', // destination license needed -> REVIEW
   'LOW_CONFIDENCE', // classification below floor -> REVIEW
+  'OWNERSHIP_RISK', // partial (<50%) sanctioned ownership -> REVIEW
 ] as const
 export const AUDIT_EVENT_TYPES = [
   'RUN_CREATED',
@@ -157,6 +158,24 @@ export const destinationRules = pgTable(
 )
 
 // ---------------------------------------------------------------------------
+// party_ownership — beneficial-ownership graph (versioned). Powers the OFAC
+// 50%-rule check (architecture-v2 §9 Tier 1): an entity owned ≥50% by a
+// sanctioned party is itself blocked, even if its own name screens clean.
+// Curated synthetic for the demo; production sources real beneficial-owner data.
+export const partyOwnership = pgTable(
+  'party_ownership',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    subjectName: text('subject_name').notNull(), // the counterparty being screened
+    ownerName: text('owner_name').notNull(), // a (direct) owner of the subject
+    ownerPct: numeric('owner_pct').notNull(), // ownership percentage 0..100
+    snapshotId: uuid('snapshot_id')
+      .notNull()
+      .references(() => refSnapshots.id),
+  },
+  (t) => [index('idx_ownership_subject').on(t.subjectName)],
+)
+
 // ===========================================================================
 // v2 — multi-tenancy, users/roles, persistent customers (architecture-v2 §9)
 // ===========================================================================
@@ -366,3 +385,5 @@ export type Customer = typeof customers.$inferSelect
 export type NewCustomer = typeof customers.$inferInsert
 export type FpClearance = typeof fpClearances.$inferSelect
 export type NewFpClearance = typeof fpClearances.$inferInsert
+export type PartyOwnership = typeof partyOwnership.$inferSelect
+export type NewPartyOwnership = typeof partyOwnership.$inferInsert

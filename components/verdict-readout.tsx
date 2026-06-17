@@ -104,8 +104,15 @@ export function VerdictReadout({
         </p>
       </div>
 
-      {/* Three discrete sub-indicators */}
-      <div className="grid grid-cols-1 divide-y divide-hairline border-t border-hairline sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+      {/* Discrete sub-indicators (a 4th appears when ownership was checked) */}
+      <div
+        className={cn(
+          'grid grid-cols-1 divide-y divide-hairline border-t border-hairline sm:divide-y-0',
+          result.ownership && result.ownership.state !== 'NO_DATA'
+            ? 'sm:grid-cols-2 sm:divide-x lg:grid-cols-4'
+            : 'sm:grid-cols-3 sm:divide-x',
+        )}
+      >
         <SubIndicator
           label="classification"
           state={c.belowFloor ? 'BELOW FLOOR' : 'RESOLVED'}
@@ -118,6 +125,20 @@ export function VerdictReadout({
           value={entityValue}
           note={entityNote}
         />
+        {result.ownership && result.ownership.state !== 'NO_DATA' ? (
+          <SubIndicator
+            label="ownership"
+            state={
+              result.ownership.state === 'BLOCKED'
+                ? 'BLOCKED · 50% RULE'
+                : result.ownership.state === 'RISK'
+                  ? 'PARTIAL'
+                  : 'CLEAR'
+            }
+            value={`${result.ownership.sanctionedPct.toFixed(0)}% sanctioned`}
+            note={result.ownership.topOwner ? `owner → ${result.ownership.topOwner}` : 'no sanctioned owners'}
+          />
+        ) : null}
         <SubIndicator
           label="destination"
           state={d.state}
