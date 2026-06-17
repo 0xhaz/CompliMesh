@@ -1,6 +1,6 @@
 'use client'
 
-import type { ScreeningResult, Verdict } from '@/core/screening'
+import type { ScreeningResult, Verdict } from '@/core/screening/view'
 import { cn } from '@/lib/utils'
 
 const DOT: Record<Verdict, string> = {

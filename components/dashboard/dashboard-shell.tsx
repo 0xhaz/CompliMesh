@@ -6,17 +6,9 @@ import { Wordmark } from '@/components/wordmark'
 import { NewScreeningView } from '@/components/dashboard/new-screening-view'
 import { HistoryView } from '@/components/dashboard/history-view'
 import { AuditTrailView } from '@/components/dashboard/audit-trail-view'
-import {
-  runScreening,
-  SCENARIOS,
-  type ScreeningResult,
-  type Scenario,
-} from '@/core/screening'
-import {
-  appendEvent,
-  seedLedger,
-  type AuditEvent,
-} from '@/core/audit'
+import { auditChainAction } from '@/app/actions'
+import type { ScreeningView } from '@/core/screening/view'
+import type { AuditEventView } from '@/core/audit/view'
 import { cn } from '@/lib/utils'
 
 type View = 'new' | 'history' | 'audit'
@@ -27,44 +19,31 @@ const NAV: { key: View; label: string }[] = [
   { key: 'audit', label: 'Audit trail' },
 ]
 
-// Seed history with the three example scenarios so History/Audit read as a
-// real working ledger from first load.
-function seedHistory(): ScreeningResult[] {
-  const ids = ['SCR-20260612-001', 'SCR-20260612-002', 'SCR-20260612-003']
-  const times = [
-    '2026-06-12T09:21:00Z',
-    '2026-06-12T09:35:00Z',
-    '2026-06-12T09:42:00Z',
-  ]
-  // History is newest-first.
-  return SCENARIOS.map((s, i) => ({
-    ...runScreening(s.input, s.overrides),
-    id: ids[i],
-    timestamp: times[i],
-  })).reverse()
-}
-
-export function DashboardShell() {
+export function DashboardShell({
+  initialHistory,
+  initialEvents,
+  initialIntact,
+}: {
+  initialHistory: ScreeningView[]
+  initialEvents: AuditEventView[]
+  initialIntact: boolean
+}) {
   const [view, setView] = useState<View>('new')
-  const [history, setHistory] = useState<ScreeningResult[]>(seedHistory)
-  const [ledger, setLedger] = useState<AuditEvent[]>(seedLedger)
+  const [history, setHistory] = useState<ScreeningView[]>(initialHistory)
+  const [events, setEvents] = useState<AuditEventView[]>(initialEvents)
 
-  function handleNewResult(result: ScreeningResult) {
+  // Ruleset label shown in the rail — from the most recent run, else a default.
+  const ruleset = history[0]?.rulesetSnapshot ?? 'No snapshot loaded'
+
+  async function handleNewResult(result: ScreeningView) {
     setHistory((prev) => [result, ...prev])
-    setLedger((prev) => {
-      const verdictLabel =
-        result.verdict === 'NO_GO' ? 'NO_GO' : result.verdict
-      const withRun = appendEvent(
-        prev,
-        'SCREENING_RUN',
-        `${result.id} · ${result.input.product.slice(0, 40)} → ${result.input.destination}`,
-      )
-      return appendEvent(
-        withRun,
-        'VERDICT_RECORDED',
-        `${result.id} · ${verdictLabel}`,
-      )
-    })
+    // Refresh the real audit ledger from the DB (the run appended 5 events).
+    try {
+      const chain = await auditChainAction()
+      setEvents(chain.events)
+    } catch {
+      /* leave ledger as-is on transient error */
+    }
   }
 
   return (
@@ -100,7 +79,7 @@ export function DashboardShell() {
         <div className="mt-auto hidden border-t border-hairline px-5 py-4 lg:block">
           <span className="label-mono block">ruleset</span>
           <span className="mt-1 block font-mono text-[0.6875rem] text-muted-foreground">
-            CSL snapshot · 2026-06-12
+            {ruleset}
           </span>
         </div>
       </aside>
@@ -111,7 +90,9 @@ export function DashboardShell() {
         {view === 'history' && (
           <HistoryView history={history} onOpenAudit={() => setView('audit')} />
         )}
-        {view === 'audit' && <AuditTrailView ledger={ledger} />}
+        {view === 'audit' && (
+          <AuditTrailView initialEvents={events} initialIntact={initialIntact} />
+        )}
       </main>
     </div>
   )

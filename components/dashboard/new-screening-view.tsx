@@ -1,12 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { VerdictReadout } from '@/components/verdict-readout'
-import {
-  runScreening,
-  SCENARIOS,
-  type ScreeningResult,
-} from '@/core/screening'
+import { runScreeningAction } from '@/app/actions'
+import { DEMO_SCENARIOS } from '@/core/screening/demo-scenarios'
+import type { ScreeningView } from '@/core/screening/view'
 import { cn } from '@/lib/utils'
 
 function Field({
@@ -58,24 +56,24 @@ function Field({
 export function NewScreeningView({
   onResult,
 }: {
-  onResult: (result: ScreeningResult) => void
+  onResult: (result: ScreeningView) => void
 }) {
   const [product, setProduct] = useState('')
   const [counterparty, setCounterparty] = useState('')
   const [destination, setDestination] = useState('')
-  // Holds the overrides for the currently-loaded scenario, if any, so the
-  // demo resolves to its intended verdict. Cleared on manual edits.
   const [activeScenario, setActiveScenario] = useState<string | null>(null)
-  const [result, setResult] = useState<ScreeningResult | null>(null)
-  const [running, setRunning] = useState(false)
+  const [result, setResult] = useState<ScreeningView | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
 
   function loadScenario(key: string) {
-    const s = SCENARIOS.find((x) => x.key === key)!
+    const s = DEMO_SCENARIOS.find((x) => x.key === key)!
     setProduct(s.input.product)
     setCounterparty(s.input.counterparty)
     setDestination(s.input.destination)
     setActiveScenario(key)
     setResult(null)
+    setError(null)
   }
 
   function edit(setter: (v: string) => void) {
@@ -86,21 +84,17 @@ export function NewScreeningView({
   }
 
   function run() {
-    if (!product || !counterparty || !destination) return
-    setRunning(true)
-    const scenario = activeScenario
-      ? SCENARIOS.find((s) => s.key === activeScenario)
-      : undefined
-    // brief, deliberate resolve
-    setTimeout(() => {
-      const res = runScreening(
-        { product, counterparty, destination },
-        scenario?.overrides,
-      )
-      setResult(res)
-      onResult(res)
-      setRunning(false)
-    }, 480)
+    if (!product || !counterparty || !destination || pending) return
+    setError(null)
+    startTransition(async () => {
+      try {
+        const res = await runScreeningAction({ product, counterparty, destination })
+        setResult(res)
+        onResult(res)
+      } catch (e) {
+        setError((e as Error).message ?? 'Screening failed. Check the connection and try again.')
+      }
+    })
   }
 
   const canRun = Boolean(product && counterparty && destination)
@@ -118,7 +112,7 @@ export function NewScreeningView({
       <div className="mt-8 flex flex-col gap-3">
         <span className="label-mono">Load an example</span>
         <div className="flex flex-wrap gap-2">
-          {SCENARIOS.map((s) => (
+          {DEMO_SCENARIOS.map((s) => (
             <button
               key={s.key}
               type="button"
@@ -177,11 +171,16 @@ export function NewScreeningView({
           <button
             type="button"
             onClick={run}
-            disabled={!canRun || running}
+            disabled={!canRun || pending}
             className="mt-4 inline-flex h-11 items-center justify-center bg-accent px-6 font-mono text-xs uppercase tracking-widest text-accent-foreground transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {running ? 'Running screening…' : 'Run screening'}
+            {pending ? 'Running screening…' : 'Run screening'}
           </button>
+          {error ? (
+            <p className="mt-3 font-mono text-[0.6875rem] leading-relaxed text-nogo">
+              {error}
+            </p>
+          ) : null}
           <p className="mt-4 font-mono text-[0.6875rem] leading-relaxed text-muted-foreground">
             Decision support only. A REVIEW or NO-GO verdict means stop and
             consult — never a silent green light.

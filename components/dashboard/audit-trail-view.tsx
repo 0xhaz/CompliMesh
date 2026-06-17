@@ -1,49 +1,53 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState, useTransition } from 'react'
+import { auditChainAction, simulateTamperAction } from '@/app/actions'
 import {
-  verifyChain,
-  tamperLedger,
+  type AuditEventView,
   truncateHash,
-  type AuditEvent,
   type VerifyResult,
-} from '@/core/audit'
+} from '@/core/audit/view'
 import { cn } from '@/lib/utils'
 
-function fmt(ts: string): string {
-  return new Date(ts)
-    .toISOString()
-    .replace('T', ' ')
-    .replace(/:\d\d\.\d+Z$/, ' UTC')
-}
-
-export function AuditTrailView({ ledger }: { ledger: AuditEvent[] }) {
-  // tamperedSeq: which row has been altered for the demo (null = pristine).
-  const [tamperedSeq, setTamperedSeq] = useState<number | null>(null)
-  const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null)
-
-  // The ledger we actually display: pristine, or with one row altered.
-  const displayedLedger = useMemo(() => {
-    if (tamperedSeq == null) return ledger
-    return tamperLedger(ledger, tamperedSeq)
-  }, [ledger, tamperedSeq])
+export function AuditTrailView({
+  initialEvents,
+  initialIntact,
+}: {
+  initialEvents: AuditEventView[]
+  initialIntact: boolean
+}) {
+  const [events, setEvents] = useState<AuditEventView[]>(initialEvents)
+  const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(
+    initialEvents.length ? { intact: initialIntact, brokenSeq: null, reason: null } : null,
+  )
+  const [tampered, setTampered] = useState(false)
+  const [pending, startTransition] = useTransition()
 
   function handleVerify() {
-    setVerifyResult(verifyChain(displayedLedger))
+    startTransition(async () => {
+      const chain = await auditChainAction()
+      setEvents(chain.events)
+      setVerifyResult(chain.verify)
+      setTampered(false)
+    })
   }
 
   function handleTamper() {
-    // Alter the NO_GO verdict row if present, else the middle row.
-    const target =
-      ledger.find((e) => e.detail.includes('NO_GO'))?.seq ??
-      ledger[Math.floor(ledger.length / 2)].seq
-    setTamperedSeq(target)
-    setVerifyResult(null)
+    startTransition(async () => {
+      const sim = await simulateTamperAction()
+      setEvents(sim.events)
+      setVerifyResult(sim.verify)
+      setTampered(true)
+    })
   }
 
-  function handleReset() {
-    setTamperedSeq(null)
-    setVerifyResult(null)
+  function handleRestore() {
+    startTransition(async () => {
+      const chain = await auditChainAction()
+      setEvents(chain.events)
+      setVerifyResult(chain.verify)
+      setTampered(false)
+    })
   }
 
   const brokenSeq = verifyResult?.intact === false ? verifyResult.brokenSeq : null
@@ -56,8 +60,9 @@ export function AuditTrailView({ ledger }: { ledger: AuditEvent[] }) {
           Append-only ledger
         </h1>
         <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Each event is chained to the one before it by hash. Alter any past row
-          and every hash from that point forward stops matching — the verifier
+          Each event is chained to the one before it by a SHA-256 hash, stored in
+          Aurora under a database-enforced append-only constraint. Alter any past
+          row and every hash from that point forward stops matching — the verifier
           pinpoints exactly which sequence number broke.
         </p>
       </header>
@@ -68,23 +73,26 @@ export function AuditTrailView({ ledger }: { ledger: AuditEvent[] }) {
           <button
             type="button"
             onClick={handleVerify}
-            className="inline-flex h-9 items-center bg-accent px-4 font-mono text-xs uppercase tracking-widest text-accent-foreground transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            disabled={pending}
+            className="inline-flex h-9 items-center bg-accent px-4 font-mono text-xs uppercase tracking-widest text-accent-foreground transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-40"
           >
-            Verify chain
+            {pending ? 'Verifying…' : 'Verify chain'}
           </button>
-          {tamperedSeq == null ? (
+          {!tampered ? (
             <button
               type="button"
               onClick={handleTamper}
-              className="inline-flex h-9 items-center border border-ink/20 px-4 font-mono text-xs uppercase tracking-widest text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              disabled={pending || events.length === 0}
+              className="inline-flex h-9 items-center border border-ink/20 px-4 font-mono text-xs uppercase tracking-widest text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-40"
             >
-              Tamper with a row
+              Simulate tampering
             </button>
           ) : (
             <button
               type="button"
-              onClick={handleReset}
-              className="inline-flex h-9 items-center border border-ink/20 px-4 font-mono text-xs uppercase tracking-widest text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              onClick={handleRestore}
+              disabled={pending}
+              className="inline-flex h-9 items-center border border-ink/20 px-4 font-mono text-xs uppercase tracking-widest text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-40"
             >
               Restore ledger
             </button>
@@ -94,11 +102,7 @@ export function AuditTrailView({ ledger }: { ledger: AuditEvent[] }) {
         {/* Status readout */}
         <div className="font-mono text-xs">
           {verifyResult == null ? (
-            <span className="text-muted-foreground">
-              {tamperedSeq == null
-                ? '● not yet verified'
-                : '● row altered — run verify'}
-            </span>
+            <span className="text-muted-foreground">● not yet verified</span>
           ) : verifyResult.intact ? (
             <span className="text-go">● chain intact · all hashes consistent</span>
           ) : (
@@ -132,8 +136,8 @@ export function AuditTrailView({ ledger }: { ledger: AuditEvent[] }) {
             </tr>
           </thead>
           <tbody>
-            {displayedLedger.map((e) => {
-              const isAltered = e.seq === tamperedSeq
+            {events.map((e) => {
+              const isAltered = Boolean(e.tampered)
               const isBreak = e.seq === brokenSeq
               return (
                 <tr
@@ -194,12 +198,19 @@ export function AuditTrailView({ ledger }: { ledger: AuditEvent[] }) {
                 </tr>
               )
             })}
+            {events.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center font-mono text-xs text-muted-foreground">
+                  No audit events yet — run a screening to populate the ledger.
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>
       <p className="mt-4 font-mono text-[0.6875rem] leading-relaxed text-muted-foreground">
-        {displayedLedger.length} events · genesis hash 0000…0000 · even direct
-        tampering is detectable.
+        {events.length} events · genesis hash 0000…0000 · append-only enforced in
+        Aurora; even direct tampering is detectable.
       </p>
     </div>
   )

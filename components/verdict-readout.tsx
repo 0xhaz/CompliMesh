@@ -1,4 +1,4 @@
-import type { ScreeningResult, Verdict } from '@/core/screening'
+import type { ScreeningResult, Verdict } from '@/core/screening/view'
 import { cn } from '@/lib/utils'
 
 const VERDICT_META: Record<
@@ -110,7 +110,7 @@ export function VerdictReadout({
           label="classification"
           state={c.belowFloor ? 'BELOW FLOOR' : 'RESOLVED'}
           value={`${c.hsCode} · conf ${c.confidence.toFixed(2)}`}
-          note={c.belowFloor ? 'reason for review' : c.description}
+          note={c.belowFloor ? 'reason for review' : (c.description ?? undefined)}
         />
         <SubIndicator
           label="entity"
