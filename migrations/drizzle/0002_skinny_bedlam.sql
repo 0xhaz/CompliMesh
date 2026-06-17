@@ -1,0 +1,2 @@
+ALTER TABLE "screening_runs" DROP CONSTRAINT "screening_runs_trigger_ck";--> statement-breakpoint
+ALTER TABLE "screening_runs" ADD CONSTRAINT "screening_runs_trigger_ck" CHECK (trigger IN ('MANUAL', 'BATCH', 'RESCREEN', 'WEBHOOK'));

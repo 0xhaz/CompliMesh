@@ -15,6 +15,13 @@
       "when": 1781696836110,
       "tag": "0001_fixed_daimon_hellstrom",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781703773555,
+      "tag": "0002_skinny_bedlam",
+      "breakpoints": true
     }
   ]
 }

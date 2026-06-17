@@ -58,7 +58,7 @@ export const AUDIT_EVENT_TYPES = [
 // --- v2: multi-tenancy, users/roles, run workflow (architecture-v2 §9) ---
 export const ORG_KINDS = ['EXPORTER', 'FORWARDER', 'BROKER'] as const
 export const USER_ROLES = ['INITIATOR', 'REVIEWER', 'APPROVER', 'ADMIN', 'AUDITOR'] as const
-export const RUN_TRIGGERS = ['MANUAL', 'BATCH', 'RESCREEN'] as const
+export const RUN_TRIGGERS = ['MANUAL', 'BATCH', 'RESCREEN', 'WEBHOOK'] as const
 export const RUN_STATUSES = [
   'CLEARED', // GO — no approval needed
   'PENDING_REVIEW', // REVIEW — awaiting an approver

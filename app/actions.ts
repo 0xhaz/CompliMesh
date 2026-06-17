@@ -63,20 +63,24 @@ export interface BatchResult {
   views: ScreeningView[]
 }
 
-// Batch screening: each line "product | counterparty | destination".
-export async function batchScreenAction(lines: string[], ctx: ActionContext): Promise<BatchResult> {
+export interface OrderRow {
+  product: string
+  counterparty: string
+  destination: string
+}
+
+// Shared batch runner (not exported — internal helper).
+async function screenRows(rows: OrderRow[], ctx: ActionContext): Promise<BatchResult> {
   const views: ScreeningView[] = []
-  for (const raw of lines) {
-    const parts = raw.split('|').map((s) => s.trim())
-    if (parts.length < 3 || parts.some((p) => !p)) continue
-    const [product, counterparty, destination] = parts
+  for (const { product, counterparty, destination } of rows) {
+    if (!product || !counterparty) continue
     const customerId = await findOrCreateCustomer(getDb(), ctx.clientId, counterparty, null)
     const run = await runScreening(
-      { product, counterparty, destination },
+      { product, counterparty, destination: destination || 'Unknown' },
       { orgId: ctx.orgId, clientId: ctx.clientId, customerId, initiatedBy: ctx.userId, actorRole: ctx.role, trigger: 'BATCH' },
     )
     const view = toScreeningView(run)
-    view.input = { product, counterparty, destination }
+    view.input = { product, counterparty, destination: destination || 'Unknown' }
     view.customerName = counterparty
     view.clientName = ctx.clientName ?? null
     views.push(view)
@@ -88,6 +92,22 @@ export async function batchScreenAction(lines: string[], ctx: ActionContext): Pr
     noGo: views.filter((v) => v.verdict === 'NO_GO').length,
     views,
   }
+}
+
+// Batch screening from textarea lines: "product | counterparty | destination".
+export async function batchScreenAction(lines: string[], ctx: ActionContext): Promise<BatchResult> {
+  const rows: OrderRow[] = []
+  for (const raw of lines) {
+    const parts = raw.split('|').map((s) => s.trim())
+    if (parts.length < 3 || parts.some((p) => !p)) continue
+    rows.push({ product: parts[0], counterparty: parts[1], destination: parts[2] })
+  }
+  return screenRows(rows, ctx)
+}
+
+// Batch screening from structured rows (CSV import).
+export async function batchScreenRowsAction(rows: OrderRow[], ctx: ActionContext): Promise<BatchResult> {
+  return screenRows(rows, ctx)
 }
 
 // ---- review queue + decisions ----

@@ -9,12 +9,13 @@ import { NewScreeningView } from '@/components/dashboard/new-screening-view'
 import { CustomersView } from '@/components/dashboard/customers-view'
 import { ReviewQueueView } from '@/components/dashboard/review-queue-view'
 import { BatchView } from '@/components/dashboard/batch-view'
+import { IntegrationsView } from '@/components/dashboard/integrations-view'
 import { AuditTrailView } from '@/components/dashboard/audit-trail-view'
 import { reviewQueueAction } from '@/app/actions'
 import type { Workspace } from '@/core/tenancy'
 import { cn } from '@/lib/utils'
 
-type View = 'overview' | 'new' | 'customers' | 'review' | 'batch' | 'audit'
+type View = 'overview' | 'new' | 'customers' | 'review' | 'batch' | 'integrations' | 'audit'
 
 const NAV: { key: View; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -22,6 +23,7 @@ const NAV: { key: View; label: string }[] = [
   { key: 'customers', label: 'Customers' },
   { key: 'review', label: 'Review queue' },
   { key: 'batch', label: 'Batch' },
+  { key: 'integrations', label: 'Integrations' },
   { key: 'audit', label: 'Audit trail' },
 ]
 
@@ -141,6 +143,7 @@ function ShellInner() {
         {view === 'customers' && <CustomersView />}
         {view === 'review' && <ReviewQueueView />}
         {view === 'batch' && <BatchView />}
+        {view === 'integrations' && <IntegrationsView />}
         {view === 'audit' && <AuditTrailView />}
       </main>
     </div>
