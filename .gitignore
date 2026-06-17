@@ -18,3 +18,5 @@ node_modules
 /out
 *.md
 workplan.md
+.vercel
+.env*
