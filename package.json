@@ -10,6 +10,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
+    "db:verify": "tsx scripts/verify-chain.ts",
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
