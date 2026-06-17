@@ -11,9 +11,13 @@ import { loadListUpdate, type ListUpdateResult, rescreenClient, type RescreenRes
 import { type ListRunsOptions, type ScreeningView, listRecentRuns, toScreeningView } from '@/core/screening/view'
 import { approveRun, clearFalsePositive, rejectRun } from '@/core/screening/workflow'
 import { getDb } from '@/core/schema/db'
-import { type ActionContext, type CustomerView, findOrCreateCustomer, getWorkspace, listCustomers, type Workspace } from '@/core/tenancy'
-
-export type { ActionContext }
+import type { ActionContext, CustomerView, Workspace } from '@/core/tenancy'
+import { findOrCreateCustomer, getWorkspace, listCustomers } from '@/core/tenancy'
+// NOTE: a 'use server' file may only export async functions. Do NOT re-export
+// types from here (e.g. `export type { ActionContext }`) — Next's server-action
+// compiler mishandles type-only re-exports in production builds and emits a
+// runtime value reference → "ReferenceError: ActionContext is not defined".
+// Client code imports ActionContext directly from '@/core/tenancy'.
 
 // ---- workspace + reads ----
 
