@@ -16,7 +16,11 @@ node_modules
 .DS_Store
 *.tsbuildinfo
 /out
-*.md
+architecture-complimesh-v2.md
+architecture-complimesh.md
+CompliMesh-Content-Bonus-Playbook.docx
+demo-script.md
+techstack-complimesh.md
 workplan.md
 .vercel
 .env*
