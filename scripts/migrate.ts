@@ -22,6 +22,18 @@ function sqlFilesIn(dir: string): string[] {
     .map((f) => join(dir, f))
 }
 
+// Postgres "already exists / duplicate" error codes — tolerated so re-running
+// applies only genuinely-new DDL (we don't use drizzle-kit's migration journal
+// because it needs a static password, incompatible with our IAM token).
+const DUPLICATE_CODES = new Set([
+  '42P07', // duplicate_table / relation already exists (incl. indexes)
+  '42710', // duplicate_object (constraint, trigger, etc.)
+  '42701', // duplicate_column
+  '42P06', // duplicate_schema
+  '42723', // duplicate_function
+  '42P16', // invalid_table_definition (e.g. constraint already exists variants)
+])
+
 async function run() {
   const pool = buildPool()
   const client = await pool.connect()
@@ -33,11 +45,21 @@ async function run() {
         .split('--> statement-breakpoint')
         .map((s) => s.trim())
         .filter(Boolean)
-      console.log(`\n▶ ${file}  (${statements.length} statements)`)
+      let applied = 0
+      let skipped = 0
       for (const stmt of statements) {
-        await client.query(stmt)
+        try {
+          await client.query(stmt)
+          applied++
+        } catch (err) {
+          if (DUPLICATE_CODES.has((err as { code?: string }).code ?? '')) {
+            skipped++ // object already exists — incremental re-run
+          } else {
+            throw err
+          }
+        }
       }
-      console.log(`  ✓ applied`)
+      console.log(`\n▶ ${file}  (${applied} applied, ${skipped} already present)`)
     }
 
     // --- 2. Hand-written machinery (run whole file; contains a $$ function body) ---

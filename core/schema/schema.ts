@@ -49,6 +49,22 @@ export const AUDIT_EVENT_TYPES = [
   'SCREEN',
   'RESOLVE',
   'VERDICT',
+  'RESCREEN', // re-screening triggered by a list change
+  'APPROVE', // approver authorized a flagged shipment
+  'REJECT', // approver rejected a flagged shipment
+  'CLEAR_FALSE_POSITIVE', // reviewer cleared a fuzzy match as not-a-match
+] as const
+
+// --- v2: multi-tenancy, users/roles, run workflow (architecture-v2 §9) ---
+export const ORG_KINDS = ['EXPORTER', 'FORWARDER', 'BROKER'] as const
+export const USER_ROLES = ['INITIATOR', 'REVIEWER', 'APPROVER', 'ADMIN', 'AUDITOR'] as const
+export const RUN_TRIGGERS = ['MANUAL', 'BATCH', 'RESCREEN'] as const
+export const RUN_STATUSES = [
+  'CLEARED', // GO — no approval needed
+  'PENDING_REVIEW', // REVIEW — awaiting an approver
+  'BLOCKED', // NO_GO — not overridable without higher authority
+  'APPROVED', // approver authorized despite a REVIEW flag
+  'REJECTED', // approver rejected
 ] as const
 
 const inList = (col: string, values: readonly string[]) =>
@@ -141,8 +157,96 @@ export const destinationRules = pgTable(
 )
 
 // ---------------------------------------------------------------------------
+// ===========================================================================
+// v2 — multi-tenancy, users/roles, persistent customers (architecture-v2 §9)
+// ===========================================================================
+
+// organizations — the TENANT. A solo exporter or a multi-client forwarder.
+export const organizations = pgTable(
+  'organizations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    kind: text('kind').notNull(), // ORG_KINDS
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('organizations_kind_ck', inList('kind', ORG_KINDS))],
+)
+
+// users — members of an org, with a role (segregation of duties, §9 Tier 3).
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id),
+    name: text('name').notNull(),
+    email: text('email').notNull(),
+    role: text('role').notNull(), // USER_ROLES
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('users_role_ck', inList('role', USER_ROLES)),
+    index('idx_users_org').on(t.orgId),
+  ],
+)
+
+// clients — client accounts within an org. An exporter has one (itself); a
+// forwarder has many. The unit the client-switcher and cross-client roll-up use.
+export const clients = pgTable(
+  'clients',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id),
+    name: text('name').notNull(),
+    country: text('country'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('idx_clients_org').on(t.orgId)],
+)
+
+// customers — saved counterparties under a client. Persistence enables history
+// and re-screening on list change (§9 Tier 1).
+export const customers = pgTable(
+  'customers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => clients.id),
+    name: text('name').notNull(),
+    country: text('country'),
+    status: text('status').notNull().default('ACTIVE'), // ACTIVE | ARCHIVED
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('idx_customers_client').on(t.clientId)],
+)
+
+// fp_clearances — a reviewer cleared a fuzzy match to a party as not-a-match.
+// Future runs for that customer suppress that party's FUZZY_MATCH hit (§9 Tier 2).
+export const fpClearances = pgTable(
+  'fp_clearances',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    customerId: uuid('customer_id')
+      .notNull()
+      .references(() => customers.id),
+    partyName: text('party_name').notNull(), // the restricted-party name cleared
+    reason: text('reason').notNull(),
+    clearedBy: uuid('cleared_by').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('idx_fp_customer').on(t.customerId)],
+)
+
+// ---------------------------------------------------------------------------
 // screening_runs — THE core object. Records which snapshot of EACH source it
 // evaluated against (3 snapshot FKs). verdict is an aggregation over control_hits.
+// v2: scoped to org/client/customer, with initiator + workflow status.
 // ---------------------------------------------------------------------------
 export const screeningRuns = pgTable(
   'screening_runs',
@@ -151,6 +255,15 @@ export const screeningRuns = pgTable(
     productId: uuid('product_id').references(() => products.id),
     entityId: uuid('entity_id').references(() => entities.id),
     destination: text('destination').notNull(), // country code
+    // v2 scope (nullable for back-compat with pre-v2 rows; set going forward)
+    orgId: uuid('org_id').references(() => organizations.id),
+    clientId: uuid('client_id').references(() => clients.id),
+    customerId: uuid('customer_id').references(() => customers.id),
+    initiatedBy: uuid('initiated_by').references(() => users.id),
+    trigger: text('trigger').notNull().default('MANUAL'), // RUN_TRIGGERS
+    status: text('status').notNull().default('CLEARED'), // RUN_STATUSES
+    approvedBy: uuid('approved_by').references(() => users.id),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
     rpSnapshotId: uuid('rp_snapshot_id')
       .notNull()
       .references(() => refSnapshots.id), // restricted-party rules used
@@ -163,7 +276,14 @@ export const screeningRuns = pgTable(
     verdict: text('verdict').notNull(), // VERDICTS
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [check('screening_runs_verdict_ck', inList('verdict', VERDICTS))],
+  (t) => [
+    check('screening_runs_verdict_ck', inList('verdict', VERDICTS)),
+    check('screening_runs_trigger_ck', inList('trigger', RUN_TRIGGERS)),
+    check('screening_runs_status_ck', inList('status', RUN_STATUSES)),
+    index('idx_runs_client').on(t.clientId),
+    index('idx_runs_customer').on(t.customerId),
+    index('idx_runs_status').on(t.status),
+  ],
 )
 
 // ---------------------------------------------------------------------------
@@ -236,3 +356,13 @@ export type ControlHit = typeof controlHits.$inferSelect
 export type NewControlHit = typeof controlHits.$inferInsert
 export type AuditLogRow = typeof auditLog.$inferSelect
 export type NewAuditLogRow = typeof auditLog.$inferInsert
+export type Organization = typeof organizations.$inferSelect
+export type NewOrganization = typeof organizations.$inferInsert
+export type User = typeof users.$inferSelect
+export type NewUser = typeof users.$inferInsert
+export type Client = typeof clients.$inferSelect
+export type NewClient = typeof clients.$inferInsert
+export type Customer = typeof customers.$inferSelect
+export type NewCustomer = typeof customers.$inferInsert
+export type FpClearance = typeof fpClearances.$inferSelect
+export type NewFpClearance = typeof fpClearances.$inferInsert

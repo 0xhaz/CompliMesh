@@ -22,6 +22,16 @@ export type {
   NewControlHit,
   AuditLogRow,
   NewAuditLogRow,
+  Organization,
+  NewOrganization,
+  User,
+  NewUser,
+  Client,
+  NewClient,
+  Customer,
+  NewCustomer,
+  FpClearance,
+  NewFpClearance,
 } from '../schema/schema'
 
 import {
@@ -32,6 +42,10 @@ import {
   HIT_DIMENSIONS,
   HIT_RULE_TYPES,
   AUDIT_EVENT_TYPES,
+  ORG_KINDS,
+  USER_ROLES,
+  RUN_TRIGGERS,
+  RUN_STATUSES,
 } from '../schema/schema'
 
 export type SourceType = (typeof SOURCE_TYPES)[number]
@@ -41,3 +55,7 @@ export type HitSourceType = (typeof HIT_SOURCE_TYPES)[number]
 export type HitDimension = (typeof HIT_DIMENSIONS)[number]
 export type HitRuleType = (typeof HIT_RULE_TYPES)[number]
 export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number]
+export type OrgKind = (typeof ORG_KINDS)[number]
+export type UserRole = (typeof USER_ROLES)[number]
+export type RunTrigger = (typeof RUN_TRIGGERS)[number]
+export type RunStatus = (typeof RUN_STATUSES)[number]

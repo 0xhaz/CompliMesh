@@ -19,10 +19,14 @@ config({ path: '.env.local' })
 import { sql } from 'drizzle-orm'
 import { getDb } from '../core/schema/db'
 import {
+  clients,
+  customers,
   destinationRules,
   hsReference,
+  organizations,
   refSnapshots,
   restrictedParties,
+  users,
 } from '../core/schema/schema'
 
 const SNAPSHOT_DATE = '2026-06-12'
@@ -78,7 +82,7 @@ async function main() {
   // audit_log; the append-only REVOKE/trigger only block UPDATE/DELETE.
   console.log('▶ truncating all tables…')
   await db.execute(
-    sql`TRUNCATE products, entities, ref_snapshots, restricted_parties, hs_reference, destination_rules, screening_runs, control_hits, audit_log RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE products, entities, ref_snapshots, restricted_parties, hs_reference, destination_rules, screening_runs, control_hits, audit_log, organizations, users, clients, customers, fp_clearances RESTART IDENTITY CASCADE`,
   )
 
   // Per-source snapshots (§2.3) — each feed versions independently.
@@ -128,8 +132,48 @@ async function main() {
     })),
   )
 
+  // ── v2: tenant (a forwarder), its users (roles), client accounts, customers ──
+  console.log('▶ inserting organization + users + clients + customers…')
+  const [org] = await db
+    .insert(organizations)
+    .values({ name: 'Meridian Trade Services', kind: 'FORWARDER' })
+    .returning()
+
+  await db.insert(users).values([
+    { orgId: org.id, name: 'Alice Tan', email: 'alice@meridian.example', role: 'INITIATOR' },
+    { orgId: org.id, name: 'Bob Reyes', email: 'bob@meridian.example', role: 'REVIEWER' },
+    { orgId: org.id, name: 'Carol Ng', email: 'carol@meridian.example', role: 'APPROVER' },
+    { orgId: org.id, name: 'Dana Lim', email: 'dana@meridian.example', role: 'ADMIN' },
+    { orgId: org.id, name: 'Erin Vale', email: 'erin@meridian.example', role: 'AUDITOR' },
+  ])
+
+  // Client accounts the forwarder screens on behalf of.
+  const clientRows = await db
+    .insert(clients)
+    .values([
+      { orgId: org.id, name: 'Northwind Electronics', country: 'DE' },
+      { orgId: org.id, name: 'Sahara Components FZE', country: 'AE' },
+      { orgId: org.id, name: 'Pacific Instruments', country: 'SG' },
+    ])
+    .returning()
+  const [northwind, sahara, pacific] = clientRows
+
+  // Saved counterparties per client (the parties being screened). 'Pacific
+  // Components Ltd' is clean now but is the re-screening demo target — a later
+  // CSL snapshot will newly sanction it.
+  await db.insert(customers).values([
+    { clientId: northwind.id, name: 'Bremer Elektronik GmbH', country: 'DE' },
+    { clientId: northwind.id, name: 'Hannover Tech Distribution', country: 'DE' },
+    { clientId: sahara.id, name: 'Gulf Avionics Trading', country: 'AE' },
+    { clientId: sahara.id, name: 'Hikvison Digital', country: 'AE' }, // fuzzy → REVIEW
+    { clientId: sahara.id, name: 'Pacific Components Ltd', country: 'AE' }, // re-screen target
+    { clientId: pacific.id, name: 'Mahan Air', country: 'IR' }, // exact → NO_GO
+    { clientId: pacific.id, name: 'Tokyo Sensor Works', country: 'JP' },
+  ])
+
   console.log(
-    `\n✅ Seeded: ${RESTRICTED_PARTIES.length} restricted parties · ${HS_REFERENCE.length} HS codes · ${DESTINATION_RULES.length} destination rules · 3 snapshots.`,
+    `\n✅ Seeded: ${RESTRICTED_PARTIES.length} restricted parties · ${HS_REFERENCE.length} HS codes · ${DESTINATION_RULES.length} destination rules · 3 snapshots.` +
+      `\n   Tenant: ${org.name} (FORWARDER) · 5 users · 3 clients · 7 customers.`,
   )
 }
 
