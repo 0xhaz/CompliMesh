@@ -1,0 +1,114 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@theme inline {
+  --font-heading: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, 'SFMono-Regular', monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Brand */
+  --color-base: var(--base);
+  --color-ink: var(--ink);
+  --color-hairline: var(--hairline);
+
+  /* Verdict readouts */
+  --color-go: var(--go);
+  --color-review: var(--review);
+  --color-nogo: var(--nogo);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+:root {
+  color-scheme: light;
+
+  /* Exact brand tokens */
+  --base: #f2f0eb;
+  --ink: #161719;
+  --accent-raw: #1f4e4a;
+  --hairline: #d8d4cc;
+
+  --go: #3a5a40;
+  --review: #9a6b1f;
+  --nogo: #7a2e2e;
+
+  --background: var(--base);
+  --foreground: var(--ink);
+  --card: #f6f4ef;
+  --card-foreground: var(--ink);
+  --popover: #f6f4ef;
+  --popover-foreground: var(--ink);
+  --primary: #1f4e4a;
+  --primary-foreground: #f2f0eb;
+  --secondary: #e8e5dd;
+  --secondary-foreground: var(--ink);
+  --muted: #e8e5dd;
+  --muted-foreground: #6b6e73;
+  --accent: #1f4e4a;
+  --accent-foreground: #f2f0eb;
+  --destructive: #7a2e2e;
+  --destructive-foreground: #f2f0eb;
+  --border: #d8d4cc;
+  --input: #d8d4cc;
+  --ring: #1f4e4a;
+  --radius: 0.25rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+}
+
+@layer utilities {
+  /* tracked, small uppercase mono label — the signature UI label */
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
