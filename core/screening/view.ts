@@ -5,14 +5,20 @@
 // Framework-agnostic (techstack §2.2): no React/Next imports.
 
 import { sql } from 'drizzle-orm'
-import type { Verdict } from '../types'
+import type { RunStatus, Verdict } from '../types'
 import type { RunResult } from './pipeline'
 
-export type { Verdict }
+export type { Verdict, RunStatus }
 
 export interface ScreeningView {
   id: string
+  runId: string
   timestamp: string
+  status: RunStatus
+  trigger: string
+  clientName: string | null
+  customerName: string | null
+  initiator: string | null
   input: { product: string; counterparty: string; destination: string }
   verdict: Verdict
   classification: {
@@ -62,7 +68,13 @@ function destinationRuleText(d: RunResult['destination']): string {
 export function toScreeningView(run: RunResult): ScreeningView {
   return {
     id: formatRunId(run.runId, run.createdAt),
+    runId: run.runId,
     timestamp: run.createdAt,
+    status: run.status,
+    trigger: 'MANUAL',
+    clientName: null,
+    customerName: null,
+    initiator: null,
     input: {
       product: '', // filled by caller from input; see runScreeningAction
       counterparty: '',
@@ -95,18 +107,38 @@ interface Db {
   execute: (q: ReturnType<typeof sql>) => Promise<{ rows: Record<string, unknown>[] }>
 }
 
-// History list (best-effort reconstruction from DB; HistoryView only renders
-// timestamp / product / hsCode / counterparty / destination / verdict).
-export async function listRecentRuns(db: Db, limit = 25): Promise<ScreeningView[]> {
+export interface ListRunsOptions {
+  clientId?: string | null // filter to one client (forwarder client-switcher)
+  orgId?: string | null // filter to one org
+  status?: RunStatus | null // filter by workflow status (review queue)
+  limit?: number
+}
+
+// History list (reconstructed from DB; enriched with client/customer/initiator).
+export async function listRecentRuns(db: Db, opts: ListRunsOptions = {}): Promise<ScreeningView[]> {
+  const limit = opts.limit ?? 50
+  const filters = [sql`TRUE`]
+  if (opts.clientId) filters.push(sql`sr.client_id = ${opts.clientId}`)
+  if (opts.orgId) filters.push(sql`sr.org_id = ${opts.orgId}`)
+  if (opts.status) filters.push(sql`sr.status = ${opts.status}`)
+  const where = sql.join(filters, sql` AND `)
+
   const runs = await db.execute(sql`
-    SELECT sr.id, sr.destination, sr.verdict, sr.created_at,
+    SELECT sr.id, sr.destination, sr.verdict, sr.status, sr.trigger, sr.created_at,
            p.description AS product, p.hs_code, p.hs_confidence,
            e.name AS counterparty,
-           rps.label AS rp_label
+           rps.label AS rp_label,
+           cl.name AS client_name,
+           cu.name AS customer_name,
+           u.name AS initiator_name
     FROM screening_runs sr
     JOIN products p ON p.id = sr.product_id
     JOIN entities e ON e.id = sr.entity_id
     JOIN ref_snapshots rps ON rps.id = sr.rp_snapshot_id
+    LEFT JOIN clients cl ON cl.id = sr.client_id
+    LEFT JOIN customers cu ON cu.id = sr.customer_id
+    LEFT JOIN users u ON u.id = sr.initiated_by
+    WHERE ${where}
     ORDER BY sr.created_at DESC, sr.id DESC
     LIMIT ${limit}
   `)
@@ -148,7 +180,13 @@ export async function listRecentRuns(db: Db, limit = 25): Promise<ScreeningView[
 
     return {
       id: formatRunId(runId, createdIso),
+      runId,
       timestamp: createdIso,
+      status: (r.status as RunStatus) ?? 'CLEARED',
+      trigger: r.trigger ? String(r.trigger) : 'MANUAL',
+      clientName: r.client_name ? String(r.client_name) : null,
+      customerName: r.customer_name ? String(r.customer_name) : null,
+      initiator: r.initiator_name ? String(r.initiator_name) : null,
       input: {
         product: String(r.product),
         counterparty: String(r.counterparty),

@@ -10,7 +10,13 @@ const heroScenario = SCENARIOS.find((s) => s.key === 'review')!
 const heroResult = {
   ...runScreening(heroScenario.input, heroScenario.overrides),
   id: 'SCR-20260612-003',
+  runId: 'demo-hero',
   timestamp: '2026-06-12T09:42:00Z',
+  status: 'PENDING_REVIEW' as const,
+  trigger: 'MANUAL',
+  clientName: null,
+  customerName: null,
+  initiator: null,
 }
 
 function Rule() {

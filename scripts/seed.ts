@@ -28,6 +28,7 @@ import {
   restrictedParties,
   users,
 } from '../core/schema/schema'
+import { generateDemoHistory } from './seed-history'
 
 const SNAPSHOT_DATE = '2026-06-12'
 
@@ -171,9 +172,12 @@ async function main() {
     { clientId: pacific.id, name: 'Tokyo Sensor Works', country: 'JP' },
   ])
 
+  console.log('▶ generating demo screening history (real runs + audit chain)…')
+  const runs = await generateDemoHistory()
+
   console.log(
     `\n✅ Seeded: ${RESTRICTED_PARTIES.length} restricted parties · ${HS_REFERENCE.length} HS codes · ${DESTINATION_RULES.length} destination rules · 3 snapshots.` +
-      `\n   Tenant: ${org.name} (FORWARDER) · 5 users · 3 clients · 7 customers.`,
+      `\n   Tenant: ${org.name} (FORWARDER) · 5 users · 3 clients · 7 customers · ${runs} screening runs.`,
   )
 }
 
