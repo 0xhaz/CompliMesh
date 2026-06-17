@@ -11,17 +11,9 @@ import { loadListUpdate, type ListUpdateResult, rescreenClient, type RescreenRes
 import { type ListRunsOptions, type ScreeningView, listRecentRuns, toScreeningView } from '@/core/screening/view'
 import { approveRun, clearFalsePositive, rejectRun } from '@/core/screening/workflow'
 import { getDb } from '@/core/schema/db'
-import { type CustomerView, findOrCreateCustomer, getWorkspace, listCustomers, type Workspace } from '@/core/tenancy'
+import { type ActionContext, type CustomerView, findOrCreateCustomer, getWorkspace, listCustomers, type Workspace } from '@/core/tenancy'
 
-// The active actor + scope, passed from the dashboard's user/client selection.
-export interface ActionContext {
-  orgId: string
-  clientId: string
-  clientName?: string
-  userId: string
-  userName?: string
-  role: string
-}
+export type { ActionContext }
 
 // ---- workspace + reads ----
 

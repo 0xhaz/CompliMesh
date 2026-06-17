@@ -1,28 +1,41 @@
+import Link from 'next/link'
 import { DashboardShell } from '@/components/dashboard/dashboard-shell'
-import { verifyAuditChain } from '@/core/audit/hash'
-import { fetchAuditChain } from '@/core/audit/read'
-import { type AuditEventView, toAuditEventView } from '@/core/audit/view'
-import { listRecentRuns, type ScreeningView } from '@/core/screening/view'
 import { getDb } from '@/core/schema/db'
+import { getWorkspace, type Workspace } from '@/core/tenancy'
 
 // DB-backed — never prerender at build time.
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
-  let history: ScreeningView[] = []
-  let events: AuditEventView[] = []
-  let intact = true
-
+  let workspace: Workspace = { org: null, users: [], clients: [] }
+  let dbError = false
   try {
-    const db = getDb()
-    history = await listRecentRuns(db)
-    const rows = await fetchAuditChain(db)
-    events = rows.map(toAuditEventView)
-    intact = verifyAuditChain(rows).intact
+    workspace = await getWorkspace(getDb())
   } catch {
-    // DB unavailable (e.g. expired OIDC token) — render an empty dashboard
-    // rather than erroring; the user can still load scenarios once it's back.
+    dbError = true
   }
 
-  return <DashboardShell initialHistory={history} initialEvents={events} initialIntact={intact} />
+  if (!workspace.org) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-6 text-center">
+        <span className="label-mono">CompliMesh</span>
+        <h1 className="font-sans text-2xl font-medium tracking-tight text-foreground">
+          {dbError ? 'Database unavailable' : 'No workspace seeded'}
+        </h1>
+        <p className="max-w-md font-mono text-xs leading-relaxed text-muted-foreground">
+          {dbError
+            ? 'Could not reach Aurora (the OIDC token may have expired — run `vercel env pull .env.local`).'
+            : 'Run `pnpm seed` to load the demo tenant, reference data, and screening history.'}
+        </p>
+        <Link
+          href="/"
+          className="font-mono text-xs uppercase tracking-widest text-accent underline-offset-4 hover:underline"
+        >
+          ← Back to home
+        </Link>
+      </div>
+    )
+  }
+
+  return <DashboardShell workspace={workspace} />
 }

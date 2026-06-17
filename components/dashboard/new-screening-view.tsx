@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { VerdictReadout } from '@/components/verdict-readout'
+import { useWorkspace } from '@/components/dashboard/workspace-context'
 import { runScreeningAction } from '@/app/actions'
 import { DEMO_SCENARIOS } from '@/core/screening/demo-scenarios'
 import type { ScreeningView } from '@/core/screening/view'
@@ -28,9 +29,7 @@ function Field({
       <label htmlFor={id} className="label-mono">
         {label}
       </label>
-      <span className="text-xs leading-relaxed text-muted-foreground">
-        {hint}
-      </span>
+      <span className="text-xs leading-relaxed text-muted-foreground">{hint}</span>
       {textarea ? (
         <textarea
           id={id}
@@ -53,11 +52,8 @@ function Field({
   )
 }
 
-export function NewScreeningView({
-  onResult,
-}: {
-  onResult: (result: ScreeningView) => void
-}) {
+export function NewScreeningView() {
+  const ws = useWorkspace()
   const [product, setProduct] = useState('')
   const [counterparty, setCounterparty] = useState('')
   const [destination, setDestination] = useState('')
@@ -88,11 +84,11 @@ export function NewScreeningView({
     setError(null)
     startTransition(async () => {
       try {
-        const res = await runScreeningAction({ product, counterparty, destination })
+        const res = await runScreeningAction({ product, counterparty, destination }, ws.actionCtx())
         setResult(res)
-        onResult(res)
+        ws.refresh() // history / overview / review badge update
       } catch (e) {
-        setError((e as Error).message ?? 'Screening failed. Check the connection and try again.')
+        setError((e as Error).message ?? 'Screening failed.')
       }
     })
   }
@@ -106,9 +102,12 @@ export function NewScreeningView({
         <h1 className="font-sans text-2xl font-medium tracking-tight">
           Can this product go to this company in this country?
         </h1>
+        <p className="font-mono text-[0.6875rem] text-muted-foreground">
+          screening as <span className="text-foreground">{ws.activeUser.name}</span> ({ws.activeUser.role}) ·
+          client <span className="text-foreground">{ws.activeClient.name}</span>
+        </p>
       </header>
 
-      {/* Scenario loaders */}
       <div className="mt-8 flex flex-col gap-3">
         <span className="label-mono">Load an example</span>
         <div className="flex flex-wrap gap-2">
@@ -142,31 +141,11 @@ export function NewScreeningView({
       </div>
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-12">
-        {/* Input panel — the three controls */}
         <div className="flex flex-col">
           <div className="border border-ink/15 bg-card p-5">
-            <Field
-              label="Product description"
-              hint="What are you shipping?"
-              value={product}
-              onChange={edit(setProduct)}
-              placeholder="e.g. portable notebook computer, 14-inch"
-              textarea
-            />
-            <Field
-              label="Counterparty"
-              hint="The company being screened."
-              value={counterparty}
-              onChange={edit(setCounterparty)}
-              placeholder="e.g. Bremer Elektronik GmbH"
-            />
-            <Field
-              label="Destination"
-              hint="Country of final delivery."
-              value={destination}
-              onChange={edit(setDestination)}
-              placeholder="e.g. Germany (DE)"
-            />
+            <Field label="Product description" hint="What are you shipping?" value={product} onChange={edit(setProduct)} placeholder="e.g. portable notebook computer, 14-inch" textarea />
+            <Field label="Counterparty" hint="The company being screened (saved to this client)." value={counterparty} onChange={edit(setCounterparty)} placeholder="e.g. Bremer Elektronik GmbH" />
+            <Field label="Destination" hint="Country of final delivery." value={destination} onChange={edit(setDestination)} placeholder="e.g. Germany (DE)" />
           </div>
           <button
             type="button"
@@ -176,18 +155,12 @@ export function NewScreeningView({
           >
             {pending ? 'Running screening…' : 'Run screening'}
           </button>
-          {error ? (
-            <p className="mt-3 font-mono text-[0.6875rem] leading-relaxed text-nogo">
-              {error}
-            </p>
-          ) : null}
+          {error ? <p className="mt-3 font-mono text-[0.6875rem] leading-relaxed text-nogo">{error}</p> : null}
           <p className="mt-4 font-mono text-[0.6875rem] leading-relaxed text-muted-foreground">
-            Decision support only. A REVIEW or NO-GO verdict means stop and
-            consult — never a silent green light.
+            Decision support only. A REVIEW or NO-GO verdict means stop and consult — never a silent green light.
           </p>
         </div>
 
-        {/* Result */}
         <div className="flex flex-col">
           {result ? (
             <VerdictReadout result={result} animate />
@@ -195,8 +168,7 @@ export function NewScreeningView({
             <div className="flex h-full min-h-64 flex-col items-start justify-center gap-3 border border-dashed border-hairline p-8">
               <span className="label-mono">Awaiting input</span>
               <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
-                Fill the three controls — or load an example — and run a
-                screening. The verdict resolves here.
+                Fill the three controls — or load an example — and run a screening. The verdict resolves here and is saved to this client&apos;s history.
               </p>
             </div>
           )}

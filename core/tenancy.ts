@@ -38,6 +38,18 @@ export interface CustomerView {
   status: string
 }
 
+// The active actor + scope, passed from the dashboard's user/client selection
+// into Server Actions. Defined here (framework-agnostic) so client components
+// can import the type without reaching into the 'use server' actions module.
+export interface ActionContext {
+  orgId: string
+  clientId: string
+  clientName?: string
+  userId: string
+  userName?: string
+  role: string
+}
+
 // The demo has one tenant; return it (latest org) plus its users + clients.
 export interface Workspace {
   org: OrgView | null

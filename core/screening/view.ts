@@ -130,7 +130,11 @@ export async function listRecentRuns(db: Db, opts: ListRunsOptions = {}): Promis
            rps.label AS rp_label,
            cl.name AS client_name,
            cu.name AS customer_name,
-           u.name AS initiator_name
+           u.name AS initiator_name,
+           (SELECT rp.name FROM control_hits ch
+              JOIN restricted_parties rp ON rp.id = ch.source_ref_id
+              WHERE ch.run_id = sr.id AND ch.dimension = 'ENTITY' AND ch.rule_type = 'FUZZY_MATCH'
+              LIMIT 1) AS fuzzy_party
     FROM screening_runs sr
     JOIN products p ON p.id = sr.product_id
     JOIN entities e ON e.id = sr.entity_id
@@ -201,7 +205,7 @@ export async function listRecentRuns(db: Db, opts: ListRunsOptions = {}): Promis
       },
       entity: {
         state: entState,
-        matchedParty: null,
+        matchedParty: r.fuzzy_party ? String(r.fuzzy_party) : null,
         matchScore: entityHit?.match_score ? Number(entityHit.match_score) : null,
         list: null,
       },
