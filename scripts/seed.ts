@@ -33,6 +33,23 @@ import { generateDemoHistory } from './seed-history'
 
 const SNAPSHOT_DATE = '2026-06-12'
 
+// Stable, deterministic IDs for the tenant/users/clients so re-seeding keeps the
+// SAME identifiers — an already-open dashboard tab stays valid after `pnpm seed`
+// (otherwise its cached user/client IDs become dangling FKs and a screening fails).
+const ORG_ID = '00000000-0000-4000-8000-000000000001'
+const U = {
+  alice: '00000000-0000-4000-8000-000000000011',
+  bob: '00000000-0000-4000-8000-000000000012',
+  carol: '00000000-0000-4000-8000-000000000013',
+  dana: '00000000-0000-4000-8000-000000000014',
+  erin: '00000000-0000-4000-8000-000000000015',
+}
+const C = {
+  northwind: '00000000-0000-4000-8000-000000000021',
+  sahara: '00000000-0000-4000-8000-000000000022',
+  pacific: '00000000-0000-4000-8000-000000000023',
+}
+
 // ── Restricted parties: curated trim of the REAL US Consolidated Screening List ──
 // Genuine listed parties. `name` is the canonical list name; `aliases` carry
 // common short forms / transliterations that fuzzy matching should also catch.
@@ -152,24 +169,24 @@ async function main() {
   console.log('▶ inserting organization + users + clients + customers…')
   const [org] = await db
     .insert(organizations)
-    .values({ name: 'Meridian Trade Services', kind: 'FORWARDER' })
+    .values({ id: ORG_ID, name: 'Meridian Trade Services', kind: 'FORWARDER' })
     .returning()
 
   await db.insert(users).values([
-    { orgId: org.id, name: 'Alice Tan', email: 'alice@meridian.example', role: 'INITIATOR' },
-    { orgId: org.id, name: 'Bob Reyes', email: 'bob@meridian.example', role: 'REVIEWER' },
-    { orgId: org.id, name: 'Carol Ng', email: 'carol@meridian.example', role: 'APPROVER' },
-    { orgId: org.id, name: 'Dana Lim', email: 'dana@meridian.example', role: 'ADMIN' },
-    { orgId: org.id, name: 'Erin Vale', email: 'erin@meridian.example', role: 'AUDITOR' },
+    { id: U.alice, orgId: org.id, name: 'Alice Tan', email: 'alice@meridian.example', role: 'INITIATOR' },
+    { id: U.bob, orgId: org.id, name: 'Bob Reyes', email: 'bob@meridian.example', role: 'REVIEWER' },
+    { id: U.carol, orgId: org.id, name: 'Carol Ng', email: 'carol@meridian.example', role: 'APPROVER' },
+    { id: U.dana, orgId: org.id, name: 'Dana Lim', email: 'dana@meridian.example', role: 'ADMIN' },
+    { id: U.erin, orgId: org.id, name: 'Erin Vale', email: 'erin@meridian.example', role: 'AUDITOR' },
   ])
 
   // Client accounts the forwarder screens on behalf of.
   const clientRows = await db
     .insert(clients)
     .values([
-      { orgId: org.id, name: 'Northwind Electronics', country: 'DE' },
-      { orgId: org.id, name: 'Sahara Components FZE', country: 'AE' },
-      { orgId: org.id, name: 'Pacific Instruments', country: 'SG' },
+      { id: C.northwind, orgId: org.id, name: 'Northwind Electronics', country: 'DE' },
+      { id: C.sahara, orgId: org.id, name: 'Sahara Components FZE', country: 'AE' },
+      { id: C.pacific, orgId: org.id, name: 'Pacific Instruments', country: 'SG' },
     ])
     .returning()
   const [northwind, sahara, pacific] = clientRows
