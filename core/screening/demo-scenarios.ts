@@ -64,11 +64,11 @@ export const DEMO_SCENARIOS: DemoScenario[] = [
     expected: 'REVIEW',
     input: {
       product: 'High-resolution thermal / IR surveillance camera module',
-      counterparty: 'Hikvision Digital Tech',
+      counterparty: 'Hikvison Digital', // transliteration/misspelling — fuzzy, not exact
       destination: 'United Arab Emirates (AE)',
     },
     hits: [
-      'ENTITY: fuzzy match to BIS Entity List "Hangzhou Hikvision Digital Technology Co., Ltd." (not exact) => FUZZY_MATCH => REVIEW',
+      'ENTITY: confident fuzzy match (~0.75) to BIS Entity List "Hangzhou Hikvision Digital Technology Co., Ltd." (not exact) => FUZZY_MATCH => REVIEW',
       'CLASSIFICATION: HS 8525.89 thermal/IR — dual-use flagged',
       'DESTINATION: AE × 8525 → LICENSE_REQUIRED (re-export risk, ECCN 6A003) => REVIEW',
       '=> no PROHIBITED, has FUZZY_MATCH + LICENSE_REQUIRED => REVIEW',
