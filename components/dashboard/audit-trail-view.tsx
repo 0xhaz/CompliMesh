@@ -32,21 +32,33 @@ export function AuditTrailView() {
     }
   }, [ws.version])
 
+  const [error, setError] = useState<string | null>(null)
+
   function handleVerify() {
+    setError(null)
     startTransition(async () => {
-      const chain = await auditChainAction()
-      setEvents(chain.events)
-      setVerifyResult(chain.verify)
-      setTampered(false)
+      try {
+        const chain = await auditChainAction()
+        setEvents(chain.events)
+        setVerifyResult(chain.verify)
+        setTampered(false)
+      } catch (e) {
+        setError((e as Error).message ?? 'Could not reach the audit ledger.')
+      }
     })
   }
 
   function handleTamper() {
+    setError(null)
     startTransition(async () => {
-      const sim = await simulateTamperAction()
-      setEvents(sim.events)
-      setVerifyResult(sim.verify)
-      setTampered(true)
+      try {
+        const sim = await simulateTamperAction()
+        setEvents(sim.events)
+        setVerifyResult(sim.verify)
+        setTampered(true)
+      } catch (e) {
+        setError((e as Error).message ?? 'Could not reach the audit ledger.')
+      }
     })
   }
 
@@ -114,6 +126,12 @@ export function AuditTrailView() {
           )}
         </div>
       </div>
+
+      {error ? (
+        <div className="mt-4 border-l-2 border-nogo bg-nogo/5 px-4 py-3">
+          <p className="font-mono text-xs leading-relaxed text-nogo">{error}</p>
+        </div>
+      ) : null}
 
       {verifyResult && !verifyResult.intact ? (
         <div className="mt-4 border-l-2 border-nogo bg-nogo/5 px-4 py-3">

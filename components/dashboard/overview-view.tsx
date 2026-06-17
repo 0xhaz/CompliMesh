@@ -6,8 +6,8 @@ import { listRunsAction, loadListUpdateAction, rescreenClientAction } from '@/ap
 import type { RescreenResult } from '@/core/screening/rescreen'
 import type { ScreeningView } from '@/core/screening/view'
 import { cn } from '@/lib/utils'
+import { VERDICT_DOT, verdictLabel } from '@/lib/verdict'
 
-const DOT: Record<string, string> = { GO: 'text-go', REVIEW: 'text-review', NO_GO: 'text-nogo' }
 
 interface ClientStat {
   client: string
@@ -139,7 +139,7 @@ export function OverviewView({ onGoToReview }: { onGoToReview: () => void }) {
             <ul className="mt-2 flex flex-col gap-1">
               {rescreen.newlyFlagged.map((f) => (
                 <li key={f.customerId} className="font-mono text-xs">
-                  <span className={cn(DOT[f.verdict])}>● {f.verdict}</span>{' '}
+                  <span className={cn(VERDICT_DOT[f.verdict])}>● {verdictLabel(f.verdict)}</span>{' '}
                   <span className="text-foreground">{f.name}</span>{' '}
                   <span className="text-muted-foreground">@{f.score.toFixed(2)} — {f.reason.slice(0, 60)}</span>
                 </li>
@@ -187,7 +187,7 @@ export function OverviewView({ onGoToReview }: { onGoToReview: () => void }) {
                   <td className="px-4 py-3 font-mono text-[0.6875rem] text-muted-foreground">{fmt(r.timestamp)}</td>
                   <td className="px-4 py-3 font-mono text-xs text-foreground">{r.clientName ?? '—'}</td>
                   <td className="px-4 py-3 font-mono text-xs text-foreground">{r.customerName ?? r.input.counterparty}</td>
-                  <td className="px-4 py-3 font-mono text-xs"><span className={cn(DOT[r.verdict])}>● {r.verdict === 'NO_GO' ? 'NO-GO' : r.verdict}</span></td>
+                  <td className="px-4 py-3 font-mono text-xs"><span className={cn(VERDICT_DOT[r.verdict])}>● {verdictLabel(r.verdict)}</span></td>
                   <td className="px-4 py-3 font-mono text-[0.6875rem] text-muted-foreground">{r.status}{r.trigger !== 'MANUAL' ? ` · ${r.trigger}` : ''}</td>
                   <td className="px-4 py-3 font-mono text-[0.6875rem] text-muted-foreground">{r.initiator ?? '—'}</td>
                 </tr>

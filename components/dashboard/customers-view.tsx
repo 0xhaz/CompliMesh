@@ -6,8 +6,8 @@ import { listCustomersAction, listRunsAction } from '@/app/actions'
 import type { CustomerView } from '@/core/tenancy'
 import type { ScreeningView } from '@/core/screening/view'
 import { cn } from '@/lib/utils'
+import { VERDICT_DOT, verdictLabel } from '@/lib/verdict'
 
-const DOT: Record<string, string> = { GO: 'text-go', REVIEW: 'text-review', NO_GO: 'text-nogo' }
 
 function fmt(ts: string) {
   return new Date(ts).toISOString().replace('T', ' ').replace(/:\d\d\.\d+Z$/, ' UTC')
@@ -83,7 +83,7 @@ export function CustomersView() {
                     <td className="px-4 py-3 font-mono text-[0.6875rem] text-muted-foreground">{last ? fmt(last.timestamp) : '—'}</td>
                     <td className="px-4 py-3 font-mono text-xs">
                       {last ? (
-                        <span className={cn(DOT[last.verdict])}>● {last.verdict === 'NO_GO' ? 'NO-GO' : last.verdict}</span>
+                        <span className={cn(VERDICT_DOT[last.verdict])}>● {verdictLabel(last.verdict)}</span>
                       ) : (
                         <span className="text-muted-foreground">not screened</span>
                       )}

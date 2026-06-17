@@ -31,7 +31,8 @@ const DUPLICATE_CODES = new Set([
   '42701', // duplicate_column
   '42P06', // duplicate_schema
   '42723', // duplicate_function
-  '42P16', // invalid_table_definition (e.g. constraint already exists variants)
+  // NOTE: 42P16 (invalid_table_definition) intentionally NOT tolerated — it's
+  // broad enough to mask a genuinely conflicting DDL change.
 ])
 
 async function run() {

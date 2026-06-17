@@ -130,6 +130,18 @@ export async function rescreenClient(ctx: RescreenContext): Promise<RescreenResu
     )
   ).rows
 
+  // Prior verdict per customer (before this re-screen) so we report only those
+  // the list change NEWLY flagged — not parties already matching last time.
+  const priorRows = (
+    await db.execute(sql`
+      SELECT DISTINCT ON (customer_id) customer_id, verdict
+      FROM screening_runs
+      WHERE client_id = ${ctx.clientId} AND customer_id IS NOT NULL
+      ORDER BY customer_id, created_at DESC, id DESC
+    `)
+  ).rows
+  const priorVerdict = new Map(priorRows.map((r) => [String(r.customer_id), String(r.verdict)]))
+
   // Entity-only classification stub (re-screen is about list changes, not HS).
   const cleanClassification: ClassificationResult = {
     hsCode: 'N/A',
@@ -188,7 +200,7 @@ export async function rescreenClient(ctx: RescreenContext): Promise<RescreenResu
             sourceRefId: h.sourceRefId,
             dimension: h.dimension,
             ruleType: h.ruleType,
-            matchScore: h.matchScore === null ? null : String(h.matchScore),
+            matchScore: h.matchScore === null ? null : String(Math.round(h.matchScore * 10000) / 10000),
             reason: h.reason,
             snapshotId: h.sourceType === 'RESTRICTED_PARTY' ? rp.id : null,
           })),
@@ -210,7 +222,9 @@ export async function rescreenClient(ctx: RescreenContext): Promise<RescreenResu
     })
 
     rescreened++
-    if (entity.band !== 'CLEAR') {
+    // "Newly flagged" = was clean (GO or never screened) before, now flagged.
+    const prev = priorVerdict.get(customerId) ?? null
+    if (verdict !== 'GO' && (prev === null || prev === 'GO')) {
       newlyFlagged.push({ customerId, name, verdict, score: entity.score, reason })
     }
   }

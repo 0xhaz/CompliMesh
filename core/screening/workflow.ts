@@ -79,6 +79,17 @@ export interface ClearFpInput {
 export async function clearFalsePositive(input: ClearFpInput): Promise<void> {
   const db = getDb()
   await db.transaction(async (tx) => {
+    // Only a run awaiting review can be cleared. A NO-GO (BLOCKED) carrying a
+    // fuzzy hit (e.g. destination-PROHIBITED + a fuzzy entity match) must not be
+    // overridden here — that hard stop is not clearable.
+    const res = await tx.execute(
+      sql`SELECT status FROM screening_runs WHERE id = ${input.runId} FOR UPDATE`,
+    )
+    const run = res.rows[0]
+    if (!run) throw new Error('Run not found.')
+    if (String(run.status) !== 'PENDING_REVIEW') {
+      throw new Error(`Run is ${String(run.status)} — only a run pending review can be cleared.`)
+    }
     await tx.insert(fpClearances).values({
       customerId: input.customerId,
       partyName: input.partyName,

@@ -15,7 +15,9 @@ export default async function DashboardPage() {
     dbError = true
   }
 
-  if (!workspace.org) {
+  // Require a fully-populated workspace — a partial seed (org but no users or
+  // clients) would otherwise crash the shell on first render.
+  if (!workspace.org || workspace.users.length === 0 || workspace.clients.length === 0) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-6 text-center">
         <span className="label-mono">CompliMesh</span>

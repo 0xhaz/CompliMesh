@@ -15,7 +15,6 @@ import { getDb } from '../schema/db'
 import {
   controlHits as controlHitsTable,
   entities,
-  fpClearances,
   products,
   screeningRuns,
 } from '../schema/schema'

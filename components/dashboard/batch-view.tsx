@@ -4,8 +4,8 @@ import { useState, useTransition } from 'react'
 import { useWorkspace } from '@/components/dashboard/workspace-context'
 import { batchScreenAction, type BatchResult } from '@/app/actions'
 import { cn } from '@/lib/utils'
+import { VERDICT_DOT, verdictLabel } from '@/lib/verdict'
 
-const DOT: Record<string, string> = { GO: 'text-go', REVIEW: 'text-review', NO_GO: 'text-nogo' }
 
 const SAMPLE = `Consumer notebook computer, 14-inch | Bremer Elektronik GmbH | Germany (DE)
 Thermal IR camera module | Hikvison Digital | United Arab Emirates (AE)
@@ -107,7 +107,7 @@ export function BatchView() {
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{v.input.destination}</td>
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{v.classification.hsCode}</td>
                     <td className="px-4 py-3 font-mono text-xs">
-                      <span className={cn(DOT[v.verdict])}>● {v.verdict === 'NO_GO' ? 'NO-GO' : v.verdict}</span>
+                      <span className={cn(VERDICT_DOT[v.verdict])}>● {verdictLabel(v.verdict)}</span>
                     </td>
                   </tr>
                 ))}
